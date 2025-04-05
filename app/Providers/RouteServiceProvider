@@ -1,0 +1,59 @@
+<?php
+
+namespace App\Providers;
+
+use App\Http\Controllers\UserControllerLevelTwo;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
+
+
+
+
+class RouteServiceProvider extends ServiceProvider
+{
+    /**
+     * The path to your application's "home" route.
+     *
+     * Typically, users are redirected here after authentication.
+     *
+     * @var string
+     */
+
+     // public const HOME = '/home';
+
+    /**
+     * Define your route model bindings, pattern filters, etc.
+     */
+    public function boot(): void
+    {
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        $this->routes(function () {
+            Route::middleware('api')
+                ->prefix('api')
+                ->group(base_path('routes/api.php'));
+
+            Route::middleware('web')
+                ->group(base_path('routes/web.php'));
+        });
+
+        // Add our softDeletes macro
+        Route::macro('softDeletes', function ($prefix, $controller) {
+            Route::prefix($prefix)->group(function () use ($controller, $prefix) {
+                Route::get('trashed', [$controller, 'trashed'])->name("{$prefix}.trashed");
+                Route::patch('{user}/restore', [$controller, 'restore'])->name("{$prefix}.restore");
+                Route::delete('{user}/force-delete', [$controller, 'forceDelete'])->name("{$prefix}.force-delete");
+            });
+            Route::patch('/{user}/users-level-two-restore', [UserControllerLevelTwo::class, 'restore'])->name('users-level-two.restore');
+            Route::delete('/{user}/users-level-two-force-delete', [UserControllerLevelTwo::class, 'forceDelete'])->name('users-level-two.force-delete');
+        });
+    }
+}
+
+
+
